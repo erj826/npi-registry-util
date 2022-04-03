@@ -6,9 +6,10 @@ import csvParser from "csv-parser";
 const BASE_ROUTE = "https://npiregistry.cms.hhs.gov/api/";
 const TAXONOMY_DESCRIPTION = "surgery";
 const ADDRESS_PURPOSE_TYPES = {
-  mailing: 'MAILING',
-  location: 'LOCATION'
-}
+  mailing: "MAILING",
+  location: "LOCATION",
+};
+const OUTPUT_FILE = "npi_records.csv";
 
 const fetchDocs = async ({ firstName, lastName, taxonomy }) => {
   const response = await fetch(
@@ -55,9 +56,11 @@ const parseProfile = (profile) => {
 };
 
 const main = async () => {
+  const input = process.argv[2];
+
   // Read a csv as input
   let doctorList = [];
-  await createReadStream("doctor_names_npi.csv")
+  await createReadStream(input)
     .pipe(csvParser())
     .on("data", (row) => {
       const nameArray = Object.values(row);
@@ -68,11 +71,14 @@ const main = async () => {
       doctorList.push(name);
     })
     .on("end", async () => {
-      console.log("CSV file successfully processed");
+      console.log("Successfully processed CSV");
+      console.log(`Found ${doctorList.length} names`);
 
       // Fetch profiles
       let doctors = [];
+      let i = 1;
       for (const { firstName, lastName } of doctorList) {
+        console.log(`Fetching record ${i++} of ${doctorList.length}`);
         const profiles = await fetchDocs({
           firstName,
           lastName,
@@ -84,7 +90,7 @@ const main = async () => {
       // Write output csv
       const writeCsv = (err, csv) => {
         if (err) throw err;
-        writeFile("doctor_profiles.csv", csv, "utf8", function (err) {
+        writeFile(OUTPUT_FILE, csv, "utf8", function (err) {
           if (err) {
             console.log("Error occured.");
           } else {

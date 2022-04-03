@@ -1,11 +1,13 @@
 # npi-registry-util
-Fetch profiles from the NPPES NPI registry
+
+Fetches records from the [NPPES NPI registry](https://npiregistry.cms.hhs.gov/)
 
 ## Usage
 
-In the `npi-registry-util/` directory include a file `doctor_names_npi.csv`. The csv must contain a list of names. Any number of middle names is ok, we drop everything besides the first and last name on the line.
+Pass the script a csv file containing a list of names. Any number of middle names is ok, we drop everything besides the first and last name on the line.
 
 i.e.
+
 ```
 first,middle,last
 alice,foo,bar
@@ -16,7 +18,7 @@ eve,baz
 Run the script using
 
 ```
-node index.mjs
+node index.mjs doctor_names_npi.csv
 ```
 
-The script will write a new csv (`doctor_profiles.csv`) to the directory.
+The script will write a new csv (`npi_records.csv`) to the directory.
