@@ -5,6 +5,10 @@ import csvParser from "csv-parser";
 
 const BASE_ROUTE = "https://npiregistry.cms.hhs.gov/api/";
 const TAXONOMY_DESCRIPTION = "surgery";
+const ADDRESS_PURPOSE_TYPES = {
+  mailing: 'MAILING',
+  location: 'LOCATION'
+}
 
 const fetchDocs = async ({ firstName, lastName, taxonomy }) => {
   const response = await fetch(
@@ -18,10 +22,10 @@ const fetchDocs = async ({ firstName, lastName, taxonomy }) => {
 const parseProfile = (profile) => {
   const basic = profile.basic;
   const mailingAddress = profile.addresses.filter(
-    (address) => address.address_purpose === "MAILING"
+    (address) => address.address_purpose === ADDRESS_PURPOSE_TYPES.mailing
   )[0];
   const practiceAddress = profile.addresses.filter(
-    (address) => address.address_purpose === "LOCATION"
+    (address) => address.address_purpose === ADDRESS_PURPOSE_TYPES.location
   )[0];
 
   const primaryTaxonomy = profile.taxonomies.filter(
