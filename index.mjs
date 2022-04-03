@@ -9,14 +9,24 @@ const ADDRESS_PURPOSE_TYPES = {
   mailing: "MAILING",
   location: "LOCATION",
 };
+const ALLOWED_TAXONOMIES = [
+  "208200000X",
+  "2082S0099X",
+  "2082S0105X",
+  "2086S0122X",
+];
+
 const OUTPUT_FILE = "npi_records.csv";
 
 const fetchDocs = async ({ firstName, lastName, taxonomy }) => {
   const response = await fetch(
-    `${BASE_ROUTE}?version=2.1&taxonomy_description=${taxonomy}&first_name=${firstName}&last_name=${lastName}`
+    // `${BASE_ROUTE}?version=2.1&taxonomy_description=${taxonomy}&first_name=${firstName}&last_name=${lastName}`
+    `${BASE_ROUTE}?version=2.1&first_name=${firstName}&last_name=${lastName}`
   );
   const data = await response.json();
-  const profiles = data.results.map((result) => parseProfile(result));
+  const profiles = data.results
+    ? data.results.map((result) => parseProfile(result)).filter((prof) => prof)
+    : [];
   return profiles;
 };
 
@@ -33,26 +43,28 @@ const parseProfile = (profile) => {
     (taxonomy) => taxonomy.primary
   )[0];
 
-  return {
-    first_name: basic?.first_name,
-    last_name: basic?.last_name,
-    gender: basic?.gender,
-    npi: profile?.number,
-    sole_proprietor: basic?.sole_proprietor,
-    status: basic?.status,
-    mailing_address_street: `${mailingAddress?.address_1} ${mailingAddress?.address_2}`,
-    mailing_address_city: mailingAddress?.city,
-    mailing_address_state: mailingAddress?.state,
-    mailing_address_zipcode: mailingAddress?.postal_code,
-    primary_practice_street: `${practiceAddress?.address_1} ${practiceAddress?.address_2}`,
-    primary_practice_city: practiceAddress?.city,
-    primary_practice_state: practiceAddress?.state,
-    primary_practice_zipcode: practiceAddress?.postal_code,
-    state: primaryTaxonomy?.state,
-    license_number: primaryTaxonomy?.license,
-    primary_taxonomy_code: primaryTaxonomy?.code,
-    primary_taxonomy_desc: primaryTaxonomy?.desc,
-  };
+  return ALLOWED_TAXONOMIES.includes(primaryTaxonomy.code)
+    ? {
+        first_name: basic?.first_name,
+        last_name: basic?.last_name,
+        gender: basic?.gender,
+        npi: profile?.number,
+        sole_proprietor: basic?.sole_proprietor,
+        status: basic?.status,
+        mailing_address_street: `${mailingAddress?.address_1} ${mailingAddress?.address_2}`,
+        mailing_address_city: mailingAddress?.city,
+        mailing_address_state: mailingAddress?.state,
+        mailing_address_zipcode: mailingAddress?.postal_code,
+        primary_practice_street: `${practiceAddress?.address_1} ${practiceAddress?.address_2}`,
+        primary_practice_city: practiceAddress?.city,
+        primary_practice_state: practiceAddress?.state,
+        primary_practice_zipcode: practiceAddress?.postal_code,
+        state: primaryTaxonomy?.state,
+        license_number: primaryTaxonomy?.license,
+        primary_taxonomy_code: primaryTaxonomy?.code,
+        primary_taxonomy_desc: primaryTaxonomy?.desc,
+      }
+    : {};
 };
 
 const main = async () => {
@@ -64,11 +76,14 @@ const main = async () => {
     .pipe(csvParser())
     .on("data", (row) => {
       const nameArray = Object.values(row);
+      const cleanedNameArray = nameArray.filter((name) => name);
       const name = {
-        firstName: nameArray[0],
-        lastName: nameArray.at(-1),
+        firstName: cleanedNameArray[0],
+        lastName: cleanedNameArray.at(-1),
       };
-      doctorList.push(name);
+      if (name.firstName && name.lastName) {
+        doctorList.push(name);
+      }
     })
     .on("end", async () => {
       console.log("Successfully processed CSV");
@@ -76,15 +91,23 @@ const main = async () => {
 
       // Fetch profiles
       let doctors = [];
-      let i = 1;
+      let i = 0;
+
       for (const { firstName, lastName } of doctorList) {
-        console.log(`Fetching record ${i++} of ${doctorList.length}`);
+        console.log(
+          `Fetching record ${++i} of ${doctorList.length} (${
+            (i / doctorList.length) * 100
+          }%)`
+        );
         const profiles = await fetchDocs({
           firstName,
           lastName,
           taxonomy: TAXONOMY_DESCRIPTION,
         });
-        doctors.push(...profiles);
+        if (profiles) {
+          doctors.push(...profiles);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 5));
       }
 
       // Write output csv
