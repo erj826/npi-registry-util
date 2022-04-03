@@ -1,0 +1,17 @@
+{
+  "name": "npi-registry-parser",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Eric Jacobson",
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "csv-parser": "^3",
+    "json-2-csv": "^3",
+    "node-fetch": "^3",
+    "prettier": "^2"
+  },
+  "scripts": {
+    "format": "prettier --write ."
+  }
+}

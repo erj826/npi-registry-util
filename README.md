@@ -1,2 +1,2 @@
 # npi-registry-util
-Fetch Profiles from the NPPES NPI Registry
+Fetch profiles from the NPPES NPI registry
