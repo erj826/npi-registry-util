@@ -18,37 +18,32 @@ const ALLOWED_TAXONOMIES = [
 
 const OUTPUT_FILE = "npi_records.csv";
 
-const fetchDocs = async ({ firstName, lastName, taxonomy }) => {
+const fetchProfiles = async ({ firstName, lastName }) => {
   const response = await fetch(
-    // `${BASE_ROUTE}?version=2.1&taxonomy_description=${taxonomy}&first_name=${firstName}&last_name=${lastName}`
     `${BASE_ROUTE}?version=2.1&first_name=${firstName}&last_name=${lastName}`
   );
   const data = await response.json();
   const profiles = data.results
-    ? data.results.map((result) => parseProfile(result)).filter((prof) => prof)
-    : [];
+    .map((dr) => formatProfile(dr))
+    .filter((dr) => Object.keys(dr).length);
   return profiles;
 };
 
-const parseProfile = (profile) => {
-  const basic = profile.basic;
-  const mailingAddress = profile.addresses.filter(
+const formatProfile = ({ basic, number, addresses, taxonomies }) => {
+  const mailingAddress = addresses.filter(
     (address) => address.address_purpose === ADDRESS_PURPOSE_TYPES.mailing
   )[0];
-  const practiceAddress = profile.addresses.filter(
+  const practiceAddress = addresses.filter(
     (address) => address.address_purpose === ADDRESS_PURPOSE_TYPES.location
   )[0];
+  const primaryTaxonomy = taxonomies.filter((taxonomy) => taxonomy.primary)[0];
 
-  const primaryTaxonomy = profile.taxonomies.filter(
-    (taxonomy) => taxonomy.primary
-  )[0];
-
-  return ALLOWED_TAXONOMIES.includes(primaryTaxonomy.code)
+  return ALLOWED_TAXONOMIES.includes(primaryTaxonomy?.code)
     ? {
         first_name: basic?.first_name,
         last_name: basic?.last_name,
         gender: basic?.gender,
-        npi: profile?.number,
+        npi: number,
         sole_proprietor: basic?.sole_proprietor,
         status: basic?.status,
         mailing_address_street: `${mailingAddress?.address_1} ${mailingAddress?.address_2}`,
@@ -67,19 +62,67 @@ const parseProfile = (profile) => {
     : {};
 };
 
+const getProfiles = (doctorList) => {
+  return Promise.all(
+    doctorList.map(({ firstName, lastName }) =>
+      fetchProfiles({ firstName, lastName })
+    )
+  );
+};
+
+const getProfilesSync = async (doctorList) => {
+  let i = 0;
+  let doctors = [];
+  for (const { firstName, lastName } of doctorList) {
+    console.log(
+      `Fetching record ${++i} of ${doctorList.length} (${(
+        (i / doctorList.length) *
+        100
+      ).toFixed(2)}%)`
+    );
+    const profiles = await fetchProfiles({
+      firstName,
+      lastName,
+      taxonomy: TAXONOMY_DESCRIPTION,
+    });
+    if (profiles) {
+      doctors.push(...profiles);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return doctors;
+};
+
+const writeJsonToCSV = (content, output) => {
+  const writeCsv = (err, csv) => {
+    if (err) throw err;
+    writeFile(output, csv, "utf8", function (err) {
+      if (err) {
+        console.log("Error occured.");
+      } else {
+        console.log("Success.");
+      }
+    });
+  };
+
+  converter.json2csv(content, writeCsv, {
+    prependHeader: true,
+  });
+};
+
 const main = async () => {
   const input = process.argv[2];
+  const output = process.argv[3] || OUTPUT_FILE;
 
-  // Read a csv as input
   let doctorList = [];
-  await createReadStream(input)
+
+  createReadStream(input)
     .pipe(csvParser())
     .on("data", (row) => {
-      const nameArray = Object.values(row);
-      const cleanedNameArray = nameArray.filter((name) => name);
+      const nameArray = Object.values(row).filter((n) => n);
       const name = {
-        firstName: cleanedNameArray[0],
-        lastName: cleanedNameArray.at(-1),
+        firstName: nameArray[0],
+        lastName: nameArray.at(-1),
       };
       if (name.firstName && name.lastName) {
         doctorList.push(name);
@@ -88,43 +131,9 @@ const main = async () => {
     .on("end", async () => {
       console.log("Successfully processed CSV");
       console.log(`Found ${doctorList.length} names`);
-
-      // Fetch profiles
-      let doctors = [];
-      let i = 0;
-
-      for (const { firstName, lastName } of doctorList) {
-        console.log(
-          `Fetching record ${++i} of ${doctorList.length} (${
-            (i / doctorList.length) * 100
-          }%)`
-        );
-        const profiles = await fetchDocs({
-          firstName,
-          lastName,
-          taxonomy: TAXONOMY_DESCRIPTION,
-        });
-        if (profiles) {
-          doctors.push(...profiles);
-        }
-        await new Promise((resolve) => setTimeout(resolve, 5));
-      }
-
-      // Write output csv
-      const writeCsv = (err, csv) => {
-        if (err) throw err;
-        writeFile(OUTPUT_FILE, csv, "utf8", function (err) {
-          if (err) {
-            console.log("Error occured.");
-          } else {
-            console.log("Success.");
-          }
-        });
-      };
-
-      converter.json2csv(doctors, writeCsv, {
-        prependHeader: true,
-      });
+      const results = await getProfiles(doctorList.slice(0, 10));
+      console.log(results);
+      writeJsonToCSV(results.flat(), output);
     });
 };
 
