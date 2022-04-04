@@ -14,6 +14,12 @@ const ALLOWED_TAXONOMIES = [
   "2082S0099X",
   "2082S0105X",
   "2086S0122X",
+  "208600000X",
+  // Extras
+  "174400000X",
+  "207XS0106X",
+  "390200000X",
+  "2086S0105X",
 ];
 
 const OUTPUT_FILE = "npi_records.csv";
@@ -39,8 +45,11 @@ const formatProfile = ({ basic, number, addresses, taxonomies }) => {
     (address) => address.address_purpose === ADDRESS_PURPOSE_TYPES.location
   )[0];
   const primaryTaxonomy = taxonomies.filter((taxonomy) => taxonomy.primary)[0];
+  const includesValidTaxonomy =
+    taxonomies.filter((taxonomy) => ALLOWED_TAXONOMIES.includes(taxonomy.code))
+      .length > 0;
 
-  return ALLOWED_TAXONOMIES.includes(primaryTaxonomy?.code)
+  return includesValidTaxonomy
     ? {
         first_name: basic?.first_name,
         last_name: basic?.last_name,
@@ -114,7 +123,7 @@ const writeJsonToCSV = (content, output) => {
   });
 };
 
-const main = async () => {
+const main = async (foundNames = []) => {
   const input = process.argv[2];
   const output = process.argv[3] || OUTPUT_FILE;
 
@@ -129,7 +138,14 @@ const main = async () => {
         lastName: nameArray.at(-1),
       };
       if (name.firstName && name.lastName) {
-        doctorList.push(name);
+        if (foundNames) {
+          const fullName = `${name.firstName} ${name.lastName}`.toUpperCase();
+          if (!foundNames.includes(fullName)) {
+            doctorList.push(name);
+          }
+        } else {
+          doctorList.push(name);
+        }
       }
     })
     .on("end", async () => {
@@ -137,11 +153,11 @@ const main = async () => {
       console.log(`Found ${doctorList.length} names`);
       try {
         // Sync
-        const results = await getProfilesSync(doctorList);
+        // const results = await getProfilesSync(doctorList);
 
         // Async
-        // let results = await getProfiles(doctorList);
-        // results = results.flat();
+        let results = await getProfiles(doctorList);
+        results = results.flat();
 
         console.log(`Writing ${results.length} records to ${output}...`);
         writeJsonToCSV(results, output);
@@ -153,3 +169,15 @@ const main = async () => {
 };
 
 main();
+
+// Take a list of results from a previous run and only run names we haven't already seen
+// let foundNames = [];
+// createReadStream("MASTER_LIST.csv")
+//   .pipe(csvParser())
+//   .on("data", (row) => {
+//     const name = `${row.first_name} ${row.last_name}`;
+//     foundNames.push(name);
+//   })
+//   .on("end", async () => {
+//     main(foundNames);
+//   });
