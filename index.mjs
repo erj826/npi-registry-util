@@ -136,11 +136,18 @@ const main = async () => {
       console.log("Successfully processed CSV");
       console.log(`Found ${doctorList.length} names`);
       try {
+        // Sync
         const results = await getProfilesSync(doctorList);
+
+        // Async
+        // let results = await getProfiles(doctorList);
+        // results = results.flat();
+
         console.log(`Writing ${results.length} records to ${output}...`);
         writeJsonToCSV(results, output);
       } catch (e) {
         console.log(e.message);
+        process.exit(1);
       }
     });
 };
