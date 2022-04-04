@@ -24,8 +24,10 @@ const fetchProfiles = async ({ firstName, lastName }) => {
   );
   const data = await response.json();
   const profiles = data.results
-    .map((dr) => formatProfile(dr))
-    .filter((dr) => Object.keys(dr).length);
+    ? data.results
+        .map((dr) => formatProfile(dr))
+        .filter((dr) => Object.keys(dr).length)
+    : [];
   return profiles;
 };
 
@@ -62,6 +64,8 @@ const formatProfile = ({ basic, number, addresses, taxonomies }) => {
     : {};
 };
 
+// This seems to overload the NPI api so we'll have to handle
+// the requests synchronously
 const getProfiles = (doctorList) => {
   return Promise.all(
     doctorList.map(({ firstName, lastName }) =>
@@ -88,7 +92,7 @@ const getProfilesSync = async (doctorList) => {
     if (profiles) {
       doctors.push(...profiles);
     }
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 5));
   }
   return doctors;
 };
@@ -131,9 +135,13 @@ const main = async () => {
     .on("end", async () => {
       console.log("Successfully processed CSV");
       console.log(`Found ${doctorList.length} names`);
-      const results = await getProfiles(doctorList.slice(0, 10));
-      console.log(results);
-      writeJsonToCSV(results.flat(), output);
+      try {
+        const results = await getProfilesSync(doctorList);
+        console.log(`Writing ${results.length} records to ${output}...`);
+        writeJsonToCSV(results, output);
+      } catch (e) {
+        console.log(e.message);
+      }
     });
 };
 
